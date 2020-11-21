@@ -15,7 +15,8 @@ services:
   my-app:
     image: yurttav/phonebook:latest
     deploy:
-      replicas: 3
+      #replicas: 3
+      mode: global
     #restart: always
     depends_on:
       - database
