@@ -13,8 +13,10 @@ services:
   
 
   my-app:
-    image: baris/phonebook:latest
-    restart: always
+    image: yurttav/phonebook:latest
+    deploy:
+      replicas: 3
+    #restart: always
     depends_on:
       - database
     ports:
@@ -24,7 +26,7 @@ services:
 
 networks:
   clarusnet:
-    driver: bridge
+    driver: overlay
 
     
     
