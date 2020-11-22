@@ -13,7 +13,23 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     ConstraintDescription: Must one of the existing EC2 KeyPair
 Resources:
-  EC2FullAccessToECR:
+  InstanceConnectPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      PolicyDocument: #required
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - ec2-instance-connect:SendSSHPublicKey
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*
+            Condition: {"StringEquals": {"ec2:osuser": ["ec2-user", "ubuntu"]}}
+          - Effect: Allow
+            Action:
+              - ec2:DescribeInstances
+            Resource: "*"
+  EC2InstanceConnect:
     Type: "AWS::IAM::Role"
     Properties:
       AssumeRolePolicyDocument:
@@ -25,12 +41,16 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       ManagedPolicyArns:
+        - !Ref InstanceConnectPolicy
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
-  EC2toECRProfile:
+        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
+        - arn:aws:iam::aws:policy/AdministratorAccess
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+  EC2ConnectProfile:
     Type: "AWS::IAM::InstanceProfile"
     Properties:
       Roles: #required
-        - !Ref EC2FullAccessToECR
+        - !Ref EC2InstanceConnect
 
   DockerMachineSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -88,7 +108,7 @@ Resources:
       ImageId: ami-02354e95b39ca8dec
       InstanceType: t2.micro
       KeyName: !Ref KeyPairName
-      IamInstanceProfile: !Ref EC2toECRProfile
+      IamInstanceProfile: !Ref EC2ConnectProfile
       SecurityGroupIds:
         - !GetAtt DockerMachineSecurityGroup.GroupId
       Tags:                
@@ -118,10 +138,7 @@ Resources:
               aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws
               docker swarm init --advertise-addr ${ControlNodePrivateIP}
               docker stack deploy -c docker-compose.yml phonebook
-            - ControlNodePrivateIP: !GetAtt DockerMachineControlNode.PrivateIp
-        
-          
-
+            - ControlNodePrivateIP: !GetAtt DockerMachineSecurityGroup.GroupId
 
 Outputs:
   WebsiteURL:
