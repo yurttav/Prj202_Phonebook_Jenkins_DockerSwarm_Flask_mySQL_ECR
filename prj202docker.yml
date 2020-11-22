@@ -31,6 +31,7 @@ Resources:
     Properties:
       Roles: #required
         - !Ref EC2FullAccessToECR
+
   DockerMachineSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -52,18 +53,34 @@ Resources:
           FromPort: 8080
           ToPort: 8080
           CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 7946
-          ToPort: 7946
-          SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId
-        - IpProtocol: udp
-          FromPort: 7946
-          ToPort: 7946
-          SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId
-        - IpProtocol: tcp
-          FromPort: 4789
-          ToPort: 4789
-          SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId
+
+  DockerMachineSecurityGroupIngress7946tcp:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      GroupId: !Ref DockerMachineSecurityGroup
+      IpProtocol: tcp #required
+      FromPort: 7946
+      ToPort: 7946
+      SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId
+  
+  DockerMachineSecurityGroupIngress7946udp:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      GroupId: !Ref DockerMachineSecurityGroup
+      IpProtocol: udp #required
+      FromPort: 7946
+      ToPort: 7946
+      SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId          
+  
+  DockerMachineSecurityGroupIngress4789udp:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      GroupId: !Ref DockerMachineSecurityGroup
+      IpProtocol: udp #required
+      FromPort: 4789
+      ToPort: 4789
+      SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId          
+      
 
   DockerMachineControlNode:
     Type: AWS::EC2::Instance
