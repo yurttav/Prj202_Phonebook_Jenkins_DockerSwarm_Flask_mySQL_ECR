@@ -77,22 +77,35 @@ Resources:
       Tags:                
         -                        
           Key: Name
-          Value: !Sub Docker Machine of ${AWS::StackName}   
+          Value: !Sub Docker Machine of ${AWS::StackName}
+           
       UserData:
-        Fn::Base64: |
-          #! /bin/bash
-          yum update -y
-          amazon-linux-extras install docker -y
-          systemctl start docker
-          systemctl enable docker
-          usermod -a -G docker ec2-user
-          curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
-          -o /usr/local/bin/docker-compose
-          chmod +x /usr/local/bin/docker-compose
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          ./aws/install
+        Fn::Base64:
+          Fn::Sub:
+            - |
+              #!/bin/bash
+              yum update -y
+              amazon-linux-extras install docker -y
+              systemctl start docker
+              systemctl enable docker
+              usermod -a -G docker ec2-user
+              curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
+              -o /usr/local/bin/docker-compose
+              chmod +x /usr/local/bin/docker-compose
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              ./aws/install
+              mkdir app
+              cd app
+              wget https://raw.githubusercontent.com/yurttav/prj202/main/docker-compose.yml
+              aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws
+              docker swarm init --advertise-addr ${ControlNodePrivateIP}
+              docker stack deploy -c docker-compose.yml phonebook
+            - ControlNodePrivateIP: !GetAtt DockerMachineControlNode.PrivateIp
+        
           
+
+
 Outputs:
   WebsiteURL:
     Description: Docker Machine Control Node DNS Name
