@@ -44,7 +44,28 @@ Resources:
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
-  DockerMachine:
+        - IpProtocol: tcp
+          FromPort: 2377
+          ToPort: 2377
+          CidrIp: 0.0.0.0/0  
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 7946
+          ToPort: 7946
+          SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId
+        - IpProtocol: udp
+          FromPort: 7946
+          ToPort: 7946
+          SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId
+        - IpProtocol: tcp
+          FromPort: 4789
+          ToPort: 4789
+          SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId
+
+  DockerMachineControlNode:
     Type: AWS::EC2::Instance
     Properties:
       ImageId: ami-02354e95b39ca8dec
@@ -71,9 +92,10 @@ Resources:
           curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
           unzip awscliv2.zip
           ./aws/install
+          
 Outputs:
   WebsiteURL:
-    Description: Docker Machine DNS Name
+    Description: Docker Machine Control Node DNS Name
     Value: !Sub 
       - ${PublicAddress}
-      - PublicAddress: !GetAtt DockerMachine.PublicDnsName
+      - PublicAddress: !GetAtt DockerMachineControlNode.PublicDnsName

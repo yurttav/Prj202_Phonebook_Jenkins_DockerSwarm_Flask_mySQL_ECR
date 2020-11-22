@@ -13,7 +13,7 @@ services:
   
 
   my-app:
-    image: yurttav/phonebook:latest
+    image: 547186126689.dkr.ecr.us-east-1.amazonaws.com/yurttav/phonebook
     deploy:
       #replicas: 3
       mode: global
