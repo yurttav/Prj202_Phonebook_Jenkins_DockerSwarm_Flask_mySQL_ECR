@@ -45,7 +45,7 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
         - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
         - arn:aws:iam::aws:policy/AdministratorAccess
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess
+  
   EC2ConnectProfile:
     Type: "AWS::IAM::InstanceProfile"
     Properties:
@@ -77,7 +77,7 @@ Resources:
   DockerMachineSecurityGroupIngress7946tcp:
     Type: "AWS::EC2::SecurityGroupIngress"
     Properties:
-      GroupId: !Ref DockerMachineSecurityGroup
+      GroupId: !GetAtt DockerMachineSecurityGroup.GroupId
       IpProtocol: tcp #required
       FromPort: 7946
       ToPort: 7946
@@ -86,7 +86,7 @@ Resources:
   DockerMachineSecurityGroupIngress7946udp:
     Type: "AWS::EC2::SecurityGroupIngress"
     Properties:
-      GroupId: !Ref DockerMachineSecurityGroup
+      GroupId: !GetAtt DockerMachineSecurityGroup.GroupId
       IpProtocol: udp #required
       FromPort: 7946
       ToPort: 7946
@@ -95,12 +95,11 @@ Resources:
   DockerMachineSecurityGroupIngress4789udp:
     Type: "AWS::EC2::SecurityGroupIngress"
     Properties:
-      GroupId: !Ref DockerMachineSecurityGroup
+      GroupId: !GetAtt DockerMachineSecurityGroup.GroupId
       IpProtocol: udp #required
       FromPort: 4789
       ToPort: 4789
-      SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId          
-      
+      SourceSecurityGroupId: !GetAtt DockerMachineSecurityGroup.GroupId               
 
   DockerMachineControlNode:
     Type: AWS::EC2::Instance
@@ -114,35 +113,196 @@ Resources:
       Tags:                
         -                        
           Key: Name
-          Value: !Sub Docker Machine of ${AWS::StackName}
-           
-      UserData:
-        Fn::Base64:
-          Fn::Sub:
-            - |
-              #!/bin/bash
-              yum update -y
-              amazon-linux-extras install docker -y
-              systemctl start docker
-              systemctl enable docker
-              usermod -a -G docker ec2-user
-              curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
-              -o /usr/local/bin/docker-compose
-              chmod +x /usr/local/bin/docker-compose
-              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              unzip awscliv2.zip
-              ./aws/install
-              mkdir app
-              cd app
-              wget https://raw.githubusercontent.com/yurttav/prj202/main/docker-compose.yml
-              aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws
-              docker swarm init --advertise-addr ${ControlNodePrivateIP}
-              docker stack deploy -c docker-compose.yml phonebook
-            - ControlNodePrivateIP: !GetAtt DockerMachineSecurityGroup.GroupId
+          Value: Docker Control Machine
+      UserData: !Base64 |
+        #!/bin/bash
+        yum update -y
+        hostnamectl set-hostname Grand-Master
+        amazon-linux-extras install docker -y
+        systemctl start docker
+        systemctl enable docker
+        usermod -a -G docker ec2-user
+        curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
+        -o /usr/local/bin/docker-compose
+        chmod +x /usr/local/bin/docker-compose
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        ./aws/install
+        yum install python3 -y
+        pip3 install ec2instanceconnectcli
+        yum install amazon-ecr-credential-helper -y
+        CNPIP=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=Docker Control Machine" --region "us-east-1" --query 'Reservations[].Instances[].PrivateIpAddress' | grep -vE '\[|\]' | awk -F'"' '{ print $2 }')
+        echo "$CNPIP" > /home/ec2-user/temp1
+        docker swarm init --advertise-addr ${CNPIP}
+        
+        mkdir /home/ec2-user/app
+        cd /home/ec2-user/app
+        wget https://raw.githubusercontent.com/yurttav/prj202/main/docker-compose.yml
+        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws.com
+        
+        docker pull  547186126689.dkr.ecr.us-east-1.amazonaws.com/yurttav/phonebook:latest
+        docker stack deploy -c docker-compose.yml phonebook
+        docker service create --name=viz --publish=8080:8080/tcp --constraint=node.role==manager --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock dockersamples/visualizer
+  
+  LaunchTemplateDockerMachineManager:
+    Type: "AWS::EC2::LaunchTemplate"
+    Properties:
+      LaunchTemplateName: DockerManager
+      LaunchTemplateData:
+        ImageId: ami-0c94855ba95c71c99
+        InstanceType: t2.micro
+        UserData: !Base64 |
+          #!/bin/bash
+          yum update -y
+          hostnamectl set-hostname Manager
+          amazon-linux-extras install docker -y
+          systemctl start docker
+          systemctl enable docker
+          usermod -a -G docker ec2-user
+          curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
+          -o /usr/local/bin/docker-compose
+          chmod +x /usr/local/bin/docker-compose
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          ./aws/install
+          yum install python3 -y
+          pip3 install ec2instanceconnectcli
+          yum install amazon-ecr-credential-helper -y
+          sleep 120
+
+          GrandMaster=$(aws ec2 describe-instances --filters Name=tag:Name,Values="Docker Control Machine"  Name=instance-state-name,Values=running --region "us-east-1" --query 'Reservations[].Instances[].InstanceId' --output text)
+          echo "$GrandMaster" > /home/ec2-user/temp1
+          
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws.com       
+          docker pull  547186126689.dkr.ecr.us-east-1.amazonaws.com/yurttav/phonebook:latest
+
+          COMMAND=$(mssh $GrandMaster --region us-east-1 -oStrictHostKeyChecking=no docker swarm join-token manager | grep "token")
+          $COMMAND
+          echo "$COMMAND + $GrandMaster" > /home/ec2-user/temp3
+
+
+  DockerMachineManager1:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !Ref EC2ConnectProfile
+      SecurityGroupIds:
+        - !GetAtt DockerMachineSecurityGroup.GroupId
+      Tags:                
+        -                        
+          Key: Name
+          Value: !Sub Docker Manager 1 of ${AWS::StackName}
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplateDockerMachineManager
+        Version: !GetAtt LaunchTemplateDockerMachineManager.LatestVersionNumber
+
+  DockerMachineManager2:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !Ref EC2ConnectProfile
+      SecurityGroupIds:
+        - !GetAtt DockerMachineSecurityGroup.GroupId
+      Tags:                
+        -                        
+          Key: Name
+          Value: !Sub Docker Manager 2 of ${AWS::StackName}
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplateDockerMachineManager
+        Version: !GetAtt LaunchTemplateDockerMachineManager.LatestVersionNumber        
+      
+  LaunchTemplateDockerMachineWorker:
+    Type: "AWS::EC2::LaunchTemplate"
+    Properties:
+      LaunchTemplateName: DockerWorker
+      LaunchTemplateData:
+        ImageId: ami-0c94855ba95c71c99
+        InstanceType: t2.micro
+        UserData: !Base64 |
+          #!/bin/bash
+          yum update -y
+          hostnamectl set-hostname Worker
+          amazon-linux-extras install docker -y
+          systemctl start docker
+          systemctl enable docker
+          usermod -a -G docker ec2-user
+          curl -L "https://github.com/docker/compose/releases/download/1.26.2/docker-compose-$(uname -s)-$(uname -m)" \
+          -o /usr/local/bin/docker-compose
+          chmod +x /usr/local/bin/docker-compose
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          ./aws/install
+          yum install python3 -y
+          pip3 install ec2instanceconnectcli
+          yum install amazon-ecr-credential-helper -y
+          sleep 120
+
+          GrandMaster=$(aws ec2 describe-instances --filters Name=tag:Name,Values="Docker Control Machine"  Name=instance-state-name,Values=running --region "us-east-1" --query 'Reservations[].Instances[].InstanceId' --output text)
+          echo "$GrandMaster" > /home/ec2-user/temp1
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws.com
+          docker pull  547186126689.dkr.ecr.us-east-1.amazonaws.com/yurttav/phonebook:latest
+          COMMAND=$(mssh $GrandMaster --region us-east-1 -oStrictHostKeyChecking=no docker swarm join-token worker | grep "token")
+          $COMMAND
+          echo "$COMMAND + $GrandMaster" > /home/ec2-user/temp3
+
+  DockerMachineWorker1:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !Ref EC2ConnectProfile
+      SecurityGroupIds:
+        - !GetAtt DockerMachineSecurityGroup.GroupId
+      Tags:                
+        -                        
+          Key: Name
+          Value: !Sub Docker Worker 1 of ${AWS::StackName}
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplateDockerMachineWorker
+        Version: !GetAtt LaunchTemplateDockerMachineWorker.LatestVersionNumber
+
+  DockerMachineWorker2:
+    Type: AWS::EC2::Instance
+    Properties:
+      KeyName: !Ref KeyPairName
+      IamInstanceProfile: !Ref EC2ConnectProfile
+      SecurityGroupIds:
+        - !GetAtt DockerMachineSecurityGroup.GroupId
+      Tags:                
+        -                        
+          Key: Name
+          Value: !Sub Docker Worker 2 of ${AWS::StackName}
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplateDockerMachineWorker
+        Version: !GetAtt LaunchTemplateDockerMachineWorker.LatestVersionNumber           
 
 Outputs:
-  WebsiteURL:
+  ControlManagerWebsiteURL:
     Description: Docker Machine Control Node DNS Name
     Value: !Sub 
       - ${PublicAddress}
       - PublicAddress: !GetAtt DockerMachineControlNode.PublicDnsName
+  Manager1WebsiteURL:
+    Description: Docker Manager 1 DNS Name
+    Value: !Sub 
+      - ${PublicAddress}
+      - PublicAddress: !GetAtt DockerMachineManager1.PublicDnsName
+  Manager2WebsiteURL:
+    Description: Docker Manager 2 DNS Name
+    Value: !Sub 
+      - ${PublicAddress}
+      - PublicAddress: !GetAtt DockerMachineManager2.PublicDnsName
+  Worker1WebsiteURL:
+    Description: Docker Worker 1 DNS Name
+    Value: !Sub 
+      - ${PublicAddress}
+      - PublicAddress: !GetAtt DockerMachineWorker1.PublicDnsName
+  Worker2WebsiteURL:
+    Description: Docker Worker 2 DNS Name
+    Value: !Sub 
+      - ${PublicAddress}
+      - PublicAddress: !GetAtt DockerMachineWorker2.PublicDnsName
+  InstanceID:
+    Description: Docker Machine Control Node ID
+    Value: !Sub 
+      - ${DockerMachineControlNode}
+      - PublicAddress: !Ref DockerMachineControlNode
