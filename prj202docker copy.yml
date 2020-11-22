@@ -135,13 +135,13 @@ Resources:
         echo "$CNPIP" > /home/ec2-user/temp1
         docker swarm init --advertise-addr ${CNPIP}
         
-        # mkdir /home/ec2-user/app
-        # cd /home/ec2-user/app
-        # wget https://raw.githubusercontent.com/yurttav/prj202/main/docker-compose.yml
-        # aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws.com
+        mkdir /home/ec2-user/app
+        cd /home/ec2-user/app
+        wget https://raw.githubusercontent.com/yurttav/prj202/main/docker-compose.yml
+        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws.com
         
-        # docker pull  547186126689.dkr.ecr.us-east-1.amazonaws.com/yurttav/phonebook:latest
-        # docker stack deploy -c docker-compose.yml phonebook
+        docker pull  547186126689.dkr.ecr.us-east-1.amazonaws.com/yurttav/phonebook:latest
+        docker stack deploy -c docker-compose.yml phonebook
         docker service create --name=viz --publish=8080:8080/tcp --constraint=node.role==manager --mount=type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock dockersamples/visualizer
   
   LaunchTemplateDockerMachineManager:
@@ -173,8 +173,8 @@ Resources:
           GrandMaster=$(aws ec2 describe-instances --filters Name=tag:Name,Values="Docker Control Machine"  Name=instance-state-name,Values=running --region "us-east-1" --query 'Reservations[].Instances[].InstanceId' --output text)
           echo "$GrandMaster" > /home/ec2-user/temp1
           
-          # aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws.com       
-          # docker pull  547186126689.dkr.ecr.us-east-1.amazonaws.com/yurttav/phonebook:latest
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws.com       
+          docker pull  547186126689.dkr.ecr.us-east-1.amazonaws.com/yurttav/phonebook:latest
 
           COMMAND=$(mssh $GrandMaster --region us-east-1 -oStrictHostKeyChecking=no docker swarm join-token manager | grep "token")
           $COMMAND
@@ -239,8 +239,8 @@ Resources:
 
           GrandMaster=$(aws ec2 describe-instances --filters Name=tag:Name,Values="Docker Control Machine"  Name=instance-state-name,Values=running --region "us-east-1" --query 'Reservations[].Instances[].InstanceId' --output text)
           echo "$GrandMaster" > /home/ec2-user/temp1
-          # aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws.com
-          # docker pull  547186126689.dkr.ecr.us-east-1.amazonaws.com/yurttav/phonebook:latest
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 547186126689.dkr.ecr.us-east-1.amazonaws.com
+          docker pull  547186126689.dkr.ecr.us-east-1.amazonaws.com/yurttav/phonebook:latest
           COMMAND=$(mssh $GrandMaster --region us-east-1 -oStrictHostKeyChecking=no docker swarm join-token worker | grep "token")
           $COMMAND
           echo "$COMMAND + $GrandMaster" > /home/ec2-user/temp3
