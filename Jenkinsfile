@@ -8,9 +8,8 @@ pipeline {
     stages {
 
         stage('Deploy') {
-
+            steps {
                 echo '$GRANDMASTER'
-                
                 sh '/usr/local/bin/mssh $GRANDMASTER --region us-east-1 -oStrictHostKeyChecking=no "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $ECR_REGISTRY"'
                 sh '/usr/local/bin/mssh $GRANDMASTER --region us-east-1 -oStrictHostKeyChecking=no "docker pull $ECR_REGISTRY/$APP_REPO_NAME:latest"'
                 sh '/usr/local/bin/mssh $GRANDMASTER --region us-east-1 -oStrictHostKeyChecking=no "docker stack deploy -c docker-compose.yml phonebook"'
