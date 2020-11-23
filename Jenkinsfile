@@ -3,7 +3,7 @@ pipeline {
     environment {
         ECR_REGISTRY="547186126689.dkr.ecr.us-east-1.amazonaws.com"
         APP_REPO_NAME="yurttav/phonebook"
-        GrandMaster= sh '$(aws ec2 describe-instances --filters Name=tag:Name,Values="Docker Control Machine"  Name=instance-state-name,Values=running --region "us-east-1" --query "Reservations[].Instances[].InstanceId" --output text)'
+        GrandMaster= '$(aws ec2 describe-instances --filters Name=tag:Name,Values="Docker Control Machine"  Name=instance-state-name,Values=running --region "us-east-1" --query "Reservations[].Instances[].InstanceId" --output text)'
     }
     stages {
 
